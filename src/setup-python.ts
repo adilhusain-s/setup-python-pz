@@ -110,7 +110,17 @@ async function run() {
 
     if (versions.length) {
       let pythonVersion = '';
-      const arch: string = core.getInput('architecture') || os.arch();
+      let arch: string = core.getInput('architecture') || os.arch(); // Original line
+
+      // --- ADD THIS LOGIC HERE ---
+      // If os.arch() returns 'ppc64', we assume it's ppc64le for this action.
+      // This is a common scenario where Node.js reports 'ppc64' for 'ppc64le' systems.
+      if (arch === 'ppc64') {
+        core.info(`Detected architecture as 'ppc64', adjusting to 'ppc64le' for download purposes.`);
+        arch = 'ppc64le';
+      }
+      // --- END ADDITION ---
+
       const updateEnvironment = core.getBooleanInput('update-environment');
       core.startGroup('Installed versions');
       for (const version of versions) {

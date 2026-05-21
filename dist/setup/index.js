@@ -55278,8 +55278,8 @@ const httpm = __importStar(__nccwpck_require__(54844));
 const utils_1 = __nccwpck_require__(71798);
 const TOKEN = core.getInput('token');
 const AUTH = !TOKEN ? undefined : `token ${TOKEN}`;
-const MANIFEST_REPO_OWNER = 'actions';
-const MANIFEST_REPO_NAME = 'python-versions';
+const MANIFEST_REPO_OWNER = 'IBM';
+const MANIFEST_REPO_NAME = 'python-versions-pz';
 const MANIFEST_REPO_BRANCH = 'main';
 exports.MANIFEST_URL = `https://raw.githubusercontent.com/${MANIFEST_REPO_OWNER}/${MANIFEST_REPO_NAME}/${MANIFEST_REPO_BRANCH}/versions-manifest.json`;
 async function findReleaseFromManifest(semanticVersionSpec, architecture, manifest) {
@@ -55527,7 +55527,15 @@ async function run() {
         const freethreaded = core.getBooleanInput('freethreaded');
         if (versions.length) {
             let pythonVersion = '';
-            const arch = core.getInput('architecture') || os.arch();
+            let arch = core.getInput('architecture') || os.arch(); // Original line
+            // --- ADD THIS LOGIC HERE ---
+            // If os.arch() returns 'ppc64', we assume it's ppc64le for this action.
+            // This is a common scenario where Node.js reports 'ppc64' for 'ppc64le' systems.
+            if (arch === 'ppc64') {
+                core.info(`Detected architecture as 'ppc64', adjusting to 'ppc64le' for download purposes.`);
+                arch = 'ppc64le';
+            }
+            // --- END ADDITION ---
             const updateEnvironment = core.getBooleanInput('update-environment');
             core.startGroup('Installed versions');
             for (const version of versions) {
