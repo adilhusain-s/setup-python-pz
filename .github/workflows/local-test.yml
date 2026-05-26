@@ -1,0 +1,94 @@
+# Local test workflow - runs on act (local GitHub Actions runner)
+# Test command: act -W .github/workflows/local-test.yml
+name: Local Test
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  # Basic Python setup with default architecture
+  test-basic:
+    name: Basic Python Setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: ./
+        with:
+          python-version: '3.12'
+
+      - name: Verify Python
+        run: |
+          python --version
+          python -c "import sys; print(f'Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"
+
+  # Test with python-version-file
+  test-version-file:
+    name: Python Version File
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .python-version
+        run: echo "3.11" > .python-version
+
+      - name: Setup Python from file
+        uses: ./
+        with:
+          python-version-file: '.python-version'
+
+      - name: Verify
+        run: python --version
+
+  # Test check-latest flag
+  test-check-latest:
+    name: Check Latest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.x latest
+        uses: ./
+        with:
+          python-version: '3.x'
+          check-latest: true
+
+      - name: Verify
+        run: python --version
+
+  # Test pip install
+  test-pip:
+    name: Pip Install Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: ./
+        with:
+          python-version: '3.12'
+
+      - name: Install requests via pip
+        run: |
+          pip install --upgrade pip
+          pip install requests
+
+      - name: Test import
+        run: python -c "import requests; print(f'requests {requests.__version__} OK')"
+
+  # Run a real Python script from the repo
+  test-script:
+    name: Run Python Script
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: ./
+        with:
+          python-version: '3.12'
+
+      - name: Run __tests__/verify-python.py
+        run: python __tests__/verify-python.py

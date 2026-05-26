@@ -1,0 +1,202 @@
+# Test workflow for ibm/setup-pz
+# This workflow tests the IBM architectures fork of actions/setup-python
+# from the main branch
+name: Test setup-python-pz
+
+on:
+  push:
+    branches: [ibm-main]
+  pull_request:
+    branches: [ibm-main]
+  workflow_dispatch:
+
+jobs:
+  # Test 1: Basic Python setup (x64 - upstream fallback)
+  test-x64:
+    name: Test Python on x64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      
+      - name: Setup Python 3.13
+        uses: ibm/setup-pz@main
+        with:
+          python-version: '3.13'
+          architecture: x64
+      
+      - name: Verify Python version
+        run: |
+          python --version
+          python -c "import sys; print(f'Python {sys.version} on {sys.platform}')"
+      
+      - name: Run a sample Python script
+        run: |
+          python -c "
+          print('Hello from setup-python-pz!')
+          import sys
+          print(f'Version: {sys.version}')
+          print(f'Architecture: {sys.maxsize > 2**32 and 64 or 32}-bit')
+          "
+
+  # Test 2: Python version file support
+  test-version-file:
+    name: Test .python-version file
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      
+      - name: Create .python-version file
+        run: echo "3.11" > .python-version
+      
+      - name: Setup Python from .python-version
+        uses: ibm/setup-pz@main
+      
+      - name: Verify Python version
+        run: |
+          python --version
+          python -c "assert __import__('sys').version_info[:2] == (3, 11); print('Version 3.11 confirmed')"
+
+  # Test 3: Multiple Python versions (matrix)
+  test-matrix:
+    name: Test Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v5
+      
+      - name: Setup Python ${{ matrix.python }}
+        uses: ibm/setup-pz@main
+        with:
+          python-version: ${{ matrix.python }}
+      
+      - name: Verify version
+        run: |
+          python --version
+          python -c "print(f'Python ${{ matrix.python }} installed successfully')"
+
+  # Test 4: pip cache support
+  test-cache:
+    name: Test pip caching
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      
+      - name: Setup Python with caching
+        uses: ibm/setup-pz@main
+        with:
+          python-version: '3.13'
+          cache: pip
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest requests
+      
+      - name: Verify cache hit info
+        run: |
+          echo "Python version: ${{ steps.setup-python.outputs.python-version }}"
+          echo "Python path: ${{ steps.setup-python.outputs.python-path }}"
+
+  # Test 5: Check-latest flag
+  test-check-latest:
+    name: Test check-latest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      
+      - name: Setup Python with check-latest
+        uses: ibm/setup-pz@main
+        with:
+          python-version: '3.x'
+          check-latest: true
+      
+      - name: Show latest Python
+        run: python --version
+
+  # Test 6: Python script execution
+  test-script:
+    name: Run Python script
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      
+      - name: Setup Python
+        uses: ibm/setup-pz@main
+        with:
+          python-version: '3.12'
+      
+      - name: Write and run a test script
+        run: |
+          cat > test_script.py << 'EOF'
+          def main():
+              print("=" * 50)
+              print("setup-python-pz Test Script")
+              print("=" * 50)
+              print(f"Action source: ibm/setup-pz@main")
+              print(f"Branch: main")
+              
+              import sys
+              import platform
+              
+              print(f"Python version : {sys.version.split()[0]}")
+              print(f"Platform       : {platform.platform()}")
+              print(f"Architecture   : {platform.machine()}")
+              print(f"Processor      : {platform.processor()}")
+              
+              # Quick math test
+              result = sum(i ** 2 for i in range(100))
+              print(f"Sum of squares : {result}")
+              
+              print("=" * 50)
+              print("All tests passed!")
+              print("=" * 50)
+          
+          if __name__ == "__main__":
+              main()
+          EOF
+          python test_script.py
+
+  # Test 7: ppc64le architecture test (IBM Power)
+  # Note: This will only run on self-hosted IBM Power runners
+  test-ppc64le:
+    name: Test Python on ppc64le
+    runs-on: [self-hosted, ppc64le]
+    if: false  # Disabled by default - enable for self-hosted IBM Power runners
+    steps:
+      - uses: actions/checkout@v5
+      
+      - name: Setup Python 3.13 for ppc64le
+        uses: ibm/setup-pz@main
+        with:
+          python-version: '3.13'
+          architecture: ppc64le
+      
+      - name: Verify architecture
+        run: |
+          python --version
+          python -c "import platform; print(f'Architecture: {platform.machine()}')"
+          uname -m
+
+  # Test 8: s390x architecture test (IBM Z)
+  # Note: This will only run on self-hosted IBM Z runners
+  test-s390x:
+    name: Test Python on s390x
+    runs-on: [self-hosted, s390x]
+    if: false  # Disabled by default - enable for self-hosted IBM Z runners
+    steps:
+      - uses: actions/checkout@v5
+      
+      - name: Setup Python 3.13 for s390x
+        uses: ibm/setup-pz@main
+        with:
+          python-version: '3.13'
+          architecture: s390x
+      
+      - name: Verify architecture
+        run: |
+          python --version
+          python -c "import platform; print(f'Architecture: {platform.machine()}')"
+          uname -m
