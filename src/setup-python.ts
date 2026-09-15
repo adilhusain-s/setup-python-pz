@@ -1,19 +1,20 @@
 import * as core from '@actions/core';
-import * as finder from './find-python';
-import * as finderPyPy from './find-pypy';
-import * as finderGraalPy from './find-graalpy';
+import * as finder from './find-python.js';
+import * as finderPyPy from './find-pypy.js';
+import * as finderGraalPy from './find-graalpy.js';
+import {isMirrorCustomized} from './install-python.js';
 import * as path from 'path';
 import * as os from 'os';
+import {fileURLToPath} from 'url';
 import fs from 'fs';
-import {getCacheDistributor} from './cache-distributions/cache-factory';
+import {getCacheDistributor} from './cache-distributions/cache-factory.js';
 import {
   isCacheFeatureAvailable,
   logWarning,
   IS_MAC,
   getVersionInputFromFile,
   getVersionsInputFromPlainFile
-} from './utils';
-import {exec} from '@actions/exec';
+} from './utils.js';
 
 function isPyPyVersion(versionSpec: string) {
   return versionSpec.startsWith('pypy');
@@ -23,17 +24,19 @@ function isGraalPyVersion(versionSpec: string) {
   return versionSpec.startsWith('graalpy');
 }
 
-async function installPipPackages(pipInstall: string) {
-  core.info(`Installing pip packages: ${pipInstall}`);
-  try {
-    const installArgs = pipInstall.trim().split(/\s+/);
-    await exec('python', ['-m', 'pip', 'install', ...installArgs]);
-    core.info('Successfully installed pip packages');
-  } catch (error) {
-    core.setFailed(
-      `Failed to install pip packages from "${pipInstall}". Please verify that the package names, versions, or requirements files provided are correct and installable, that the specified packages and versions can be resolved from PyPI or the configured package index, and that your network connection is stable and allows access to the package index.`
-    );
+// `mirror` only redirects CPython distributions. PyPy and GraalPy resolve from
+// downloads.python.org and the GitHub releases API respectively, so warn rather
+// than let the input look like it applied. Only warns when the user actually
+// set a custom mirror: action.yml gives `mirror` a default, so a plain
+// getInput() check would fire on every pypy-*/graalpy-* run.
+function warnIfMirrorUnsupported(versionSpec: string) {
+  if (!isMirrorCustomized()) {
+    return;
   }
+  const implementation = isPyPyVersion(versionSpec) ? 'PyPy' : 'GraalPy';
+  core.warning(
+    `The 'mirror' input only applies to CPython distributions and is ignored for ${implementation} ('${versionSpec}'), which is downloaded from its own upstream source.`
+  );
 }
 
 async function cacheDependencies(cache: string, pythonVersion: string) {
@@ -123,6 +126,7 @@ async function run() {
       core.startGroup('Installed versions');
       for (const version of versions) {
         if (isPyPyVersion(version)) {
+          warnIfMirrorUnsupported(version);
           const installed = await finderPyPy.findPyPyVersion(
             version,
             arch,
@@ -135,6 +139,7 @@ async function run() {
             `Successfully set up PyPy ${installed.resolvedPyPyVersion} with Python (${installed.resolvedPythonVersion})`
           );
         } else if (isGraalPyVersion(version)) {
+          warnIfMirrorUnsupported(version);
           const installed = await finderGraalPy.findGraalPyVersion(
             version,
             arch,
@@ -167,16 +172,16 @@ async function run() {
       if (cache && isCacheFeatureAvailable()) {
         await cacheDependencies(cache, pythonVersion);
       }
-      const pipInstall = core.getInput('pip-install');
-      if (pipInstall) {
-        await installPipPackages(pipInstall);
-      }
     } else {
       core.warning(
         'The `python-version` input is not set. The version of Python currently in `PATH` will be used.'
       );
     }
-    const matchersPath = path.join(__dirname, '../..', '.github');
+    const matchersPath = path.join(
+      path.dirname(fileURLToPath(import.meta.url)),
+      '../..',
+      '.github'
+    );
     core.info(`##[add-matcher]${path.join(matchersPath, 'python.json')}`);
   } catch (err) {
     core.setFailed((err as Error).message);

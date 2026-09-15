@@ -1,6 +1,7 @@
 import * as cache from '@actions/cache';
 import * as core from '@actions/core';
-import {CACHE_DEPENDENCY_BACKUP_PATH} from './constants';
+import {getOSInfo, IS_LINUX} from '../utils.js';
+import {CACHE_DEPENDENCY_BACKUP_PATH} from './constants.js';
 
 export enum State {
   STATE_CACHE_PRIMARY_KEY = 'cache-primary-key',
@@ -22,6 +23,33 @@ abstract class CacheDistributor {
   }>;
   protected async handleLoadedCache() {}
 
+  /**
+   * Builds the Linux distro portion of a cache key (e.g. `-26.04-Ubuntu`, `-9-rhel`).
+   * RHEL is keyed by major version since it ships one ABI-stable artifact per major.
+   */
+  protected async getLinuxInfoKeySegment(): Promise<string> {
+    if (!IS_LINUX) {
+      return '';
+    }
+
+    const osInfo = await getOSInfo();
+    if (!osInfo) {
+      return '';
+    }
+
+    // lsb_release reports RHEL as "RedHatEnterpriseLinux" while /etc/os-release
+    // reports it as "rhel"; normalize both to "rhel" so the key is consistent.
+    const normalizedName = osInfo.osName.toLowerCase();
+    const isRhel =
+      normalizedName === 'rhel' || normalizedName.includes('redhat');
+    const osName = isRhel ? 'rhel' : osInfo.osName;
+    const osVersion = isRhel
+      ? osInfo.osVersion.split('.')[0]
+      : osInfo.osVersion;
+
+    return `-${osVersion}-${osName}`;
+  }
+
   public async restoreCache() {
     const {primaryKey, restoreKey} = await this.computeKeys();
     if (primaryKey.endsWith('-')) {
@@ -32,7 +60,7 @@ abstract class CacheDistributor {
               .join(',')} or ${CACHE_DEPENDENCY_BACKUP_PATH}`
           : this.cacheDependencyPath.split('\n').join(',');
       throw new Error(
-        `No file in ${process.cwd()} matched to [${file}], make sure you have checked out the target repository`
+        `No file in ${process.cwd()} matched to [${file}] for ${this.packageManager}. Make sure you have checked out the target repository, or consider removing the cache step if there are no dependencies to cache.`
       );
     }
 
