@@ -1,16 +1,72 @@
+import {jest, describe, it, expect, beforeEach, afterEach} from '@jest/globals';
+import {fileURLToPath} from 'url';
 import * as path from 'path';
-import * as core from '@actions/core';
-import * as cache from '@actions/cache';
-import * as exec from '@actions/exec';
-import * as io from '@actions/io';
-import {getCacheDistributor} from '../src/cache-distributions/cache-factory';
-import {State} from '../src/cache-distributions/cache-distributor';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Mock @actions modules before importing anything that depends on them
+jest.unstable_mockModule('@actions/core', () => ({
+  info: jest.fn(),
+  warning: jest.fn(),
+  debug: jest.fn(),
+  error: jest.fn(),
+  notice: jest.fn(),
+  setFailed: jest.fn(),
+  setOutput: jest.fn(),
+  getInput: jest.fn(),
+  getBooleanInput: jest.fn(),
+  getMultilineInput: jest.fn(),
+  addPath: jest.fn(),
+  exportVariable: jest.fn(),
+  saveState: jest.fn(),
+  getState: jest.fn(),
+  setSecret: jest.fn(),
+  isDebug: jest.fn(() => false),
+  startGroup: jest.fn(),
+  endGroup: jest.fn(),
+  group: jest.fn((_name: string, fn: () => Promise<unknown>) => fn()),
+  toPlatformPath: jest.fn((p: string) => p),
+  toWin32Path: jest.fn((p: string) => p),
+  toPosixPath: jest.fn((p: string) => p)
+}));
+
+jest.unstable_mockModule('@actions/cache', () => ({
+  saveCache: jest.fn(),
+  restoreCache: jest.fn(),
+  isFeatureAvailable: jest.fn()
+}));
+
+jest.unstable_mockModule('@actions/exec', () => ({
+  exec: jest.fn(),
+  getExecOutput: jest.fn()
+}));
+
+jest.unstable_mockModule('@actions/io', () => ({
+  which: jest.fn(),
+  mkdirP: jest.fn(),
+  rmRF: jest.fn(),
+  mv: jest.fn(),
+  cp: jest.fn()
+}));
+
+// Dynamic imports after mocking
+const core = await import('@actions/core');
+const cache = await import('@actions/cache');
+const exec = await import('@actions/exec');
+const io = await import('@actions/io');
+const {getCacheDistributor} =
+  await import('../src/cache-distributions/cache-factory.js');
+const {State} = await import('../src/cache-distributions/cache-distributor.js');
 
 describe('restore-cache', () => {
-  const pipFileLockHash = 'f8428d7cf00ea53a5c3702f0a9cb3cc467f76cd86a34723009350c4e4b32751a'; // pragma: allowlist secret - test fixture hash
-  const requirementsHash = 'd8110e0006d7fb5ee76365d565eef9d37df1d11598b912d3eb66d398d57a1121'; // pragma: allowlist secret - test fixture hash
-  const requirementsLinuxHash = '2d0ff7f46b0e120e3d3294db65768b474934242637b9899b873e6283dfd16d7c'; // pragma: allowlist secret - test fixture hash
-  const poetryLockHash = 'f24ea1ad73968e6c8d80c16a093ade72d9332c433aeef979a0dd943e6a99b2ab'; // pragma: allowlist secret - test fixture hash
+  const pipFileLockHash =
+    'f8428d7cf00ea53a5c3702f0a9cb3cc467f76cd86a34723009350c4e4b32751a'; // pragma: allowlist secret - test fixture hash
+  const requirementsHash =
+    'd8110e0006d7fb5ee76365d565eef9d37df1d11598b912d3eb66d398d57a1121'; // pragma: allowlist secret - test fixture hash
+  const requirementsLinuxHash =
+    '2d0ff7f46b0e120e3d3294db65768b474934242637b9899b873e6283dfd16d7c'; // pragma: allowlist secret - test fixture hash
+  const poetryLockHash =
+    'f24ea1ad73968e6c8d80c16a093ade72d9332c433aeef979a0dd943e6a99b2ab'; // pragma: allowlist secret - test fixture hash
   const poetryConfigOutput = `
 cache-dir = "/Users/patrick/Library/Caches/pypoetry"
 experimental.new-installer = false
@@ -20,43 +76,38 @@ virtualenvs.in-project = true
 virtualenvs.path = "{cache-dir}/virtualenvs"  # /Users/patrick/Library/Caches/pypoetry/virtualenvs
   `;
 
-  // core spy
-  let infoSpy: jest.SpyInstance;
-  let warningSpy: jest.SpyInstance;
-  let debugSpy: jest.SpyInstance;
-  let saveStateSpy: jest.SpyInstance;
-  let getStateSpy: jest.SpyInstance;
-  let setOutputSpy: jest.SpyInstance;
-
-  // cache spy
-  let restoreCacheSpy: jest.SpyInstance;
-
-  // exec spy
-  let getExecOutputSpy: jest.SpyInstance;
-
-  // io spy
-  let whichSpy: jest.SpyInstance;
+  let infoSpy: jest.Mock;
+  let warningSpy: jest.Mock;
+  let debugSpy: jest.Mock;
+  let saveStateSpy: jest.Mock;
+  let getStateSpy: jest.Mock;
+  let setOutputSpy: jest.Mock;
+  let restoreCacheSpy: jest.Mock;
+  let getExecOutputSpy: jest.Mock;
+  let whichSpy: jest.Mock;
 
   beforeEach(() => {
     process.env['RUNNER_OS'] = process.env['RUNNER_OS'] ?? 'linux';
 
-    infoSpy = jest.spyOn(core, 'info');
-    infoSpy.mockImplementation(input => undefined);
+    infoSpy = core.info as jest.Mock;
+    infoSpy.mockImplementation(() => undefined);
 
-    warningSpy = jest.spyOn(core, 'warning');
-    warningSpy.mockImplementation(input => undefined);
+    warningSpy = core.warning as jest.Mock;
+    warningSpy.mockImplementation(() => undefined);
 
-    debugSpy = jest.spyOn(core, 'debug');
-    debugSpy.mockImplementation(input => undefined);
+    debugSpy = core.debug as jest.Mock;
+    debugSpy.mockImplementation(() => undefined);
 
-    saveStateSpy = jest.spyOn(core, 'saveState');
-    saveStateSpy.mockImplementation(input => undefined);
+    saveStateSpy = core.saveState as jest.Mock;
+    saveStateSpy.mockImplementation(() => undefined);
 
-    getStateSpy = jest.spyOn(core, 'getState');
-    getStateSpy.mockImplementation(input => undefined);
+    getStateSpy = core.getState as jest.Mock;
+    getStateSpy.mockImplementation(() => undefined);
 
-    getExecOutputSpy = jest.spyOn(exec, 'getExecOutput');
-    getExecOutputSpy.mockImplementation((input: string) => {
+    getExecOutputSpy = exec.getExecOutput as jest.Mock;
+    (
+      getExecOutputSpy as jest.Mock<typeof exec.getExecOutput>
+    ).mockImplementation(async (input: string) => {
       if (input.includes('pip')) {
         return {stdout: 'pip', stderr: '', exitCode: 0};
       }
@@ -70,17 +121,19 @@ virtualenvs.path = "{cache-dir}/virtualenvs"  # /Users/patrick/Library/Caches/py
       return {stdout: '', stderr: 'Error occured', exitCode: 2};
     });
 
-    setOutputSpy = jest.spyOn(core, 'setOutput');
-    setOutputSpy.mockImplementation(input => undefined);
+    setOutputSpy = core.setOutput as jest.Mock;
+    setOutputSpy.mockImplementation(() => undefined);
 
-    restoreCacheSpy = jest.spyOn(cache, 'restoreCache');
-    restoreCacheSpy.mockImplementation(
-      (cachePaths: string[], primaryKey: string, restoreKey?: string) => {
-        return primaryKey;
+    restoreCacheSpy = cache.restoreCache as jest.Mock;
+    (
+      restoreCacheSpy as jest.Mock<typeof cache.restoreCache>
+    ).mockImplementation(
+      (cachePaths: string[], primaryKey: string, restoreKey?: string[]) => {
+        return Promise.resolve(primaryKey);
       }
     );
 
-    whichSpy = jest.spyOn(io, 'which');
+    whichSpy = io.which as jest.Mock;
     whichSpy.mockImplementation(() => '/path/to/python');
   });
 
@@ -159,9 +212,13 @@ virtualenvs.path = "{cache-dir}/virtualenvs"  # /Users/patrick/Library/Caches/py
         fileHash,
         cachePaths
       ) => {
-        restoreCacheSpy.mockImplementation(
-          (cachePaths: string[], primaryKey: string, restoreKey?: string) => {
-            return primaryKey.includes(fileHash) ? primaryKey : '';
+        (
+          restoreCacheSpy as jest.Mock<typeof cache.restoreCache>
+        ).mockImplementation(
+          (cachePaths: string[], primaryKey: string, restoreKey?: string[]) => {
+            return Promise.resolve(
+              primaryKey.includes(fileHash) ? primaryKey : ''
+            );
           }
         );
 
@@ -180,25 +237,18 @@ virtualenvs.path = "{cache-dir}/virtualenvs"  # /Users/patrick/Library/Caches/py
           );
         }
 
-        const restoredKeys = restoreCacheSpy.mock.results.map(
-          result => result.value
+        const restoredKeys = await Promise.all(
+          restoreCacheSpy.mock.results.map(result => result.value)
         );
 
         restoredKeys.forEach(restoredKey => {
           if (restoredKey) {
-            if (process.platform === 'linux' && packageManager === 'pip') {
-              expect(infoSpy).toHaveBeenCalledWith(
-                `Cache restored from key: setup-python-${process.env['RUNNER_OS']}-${process.arch}-20.04-Ubuntu-python-${pythonVersion}-${packageManager}-${fileHash}`
-              );
-            } else if (packageManager === 'poetry') {
-              expect(infoSpy).toHaveBeenCalledWith(
-                `Cache restored from key: setup-python-${process.env['RUNNER_OS']}-${process.arch}-python-${pythonVersion}-${packageManager}-v2-${fileHash}`
-              );
-            } else {
-              expect(infoSpy).toHaveBeenCalledWith(
-                `Cache restored from key: setup-python-${process.env['RUNNER_OS']}-${process.arch}-python-${pythonVersion}-${packageManager}-${fileHash}`
-              );
-            }
+            const osSegment =
+              process.platform === 'linux' ? '-20.04-Ubuntu' : '';
+            const versionSuffix = packageManager === 'poetry' ? '-v2' : '';
+            expect(infoSpy).toHaveBeenCalledWith(
+              `Cache restored from key: setup-python-${process.env['RUNNER_OS']}-${process.arch}${osSegment}-python-${pythonVersion}-${packageManager}${versionSuffix}-${fileHash}`
+            );
           } else {
             expect(infoSpy).toHaveBeenCalledWith(
               `${packageManager} cache is not found`
@@ -226,7 +276,9 @@ virtualenvs.path = "{cache-dir}/virtualenvs"  # /Users/patrick/Library/Caches/py
         await expect(cacheDistributor.restoreCache()).rejects.toThrow(
           `No file in ${process.cwd()} matched to [${cacheDependencyPath
             .split('\n')
-            .join(',')}], make sure you have checked out the target repository`
+            .join(
+              ','
+            )}] for ${packageManager}. Make sure you have checked out the target repository, or consider removing the cache step if there are no dependencies to cache.`
         );
       }
     );
@@ -287,9 +339,13 @@ virtualenvs.path = "{cache-dir}/virtualenvs"  # /Users/patrick/Library/Caches/py
     ])(
       'restored dependencies for %s by primaryKey',
       async (packageManager, pythonVersion, dependencyFile, fileHash) => {
-        restoreCacheSpy.mockImplementation(
-          (cachePaths: string[], primaryKey: string, restoreKey?: string) => {
-            return primaryKey !== fileHash && restoreKey ? pipFileLockHash : '';
+        (
+          restoreCacheSpy as jest.Mock<typeof cache.restoreCache>
+        ).mockImplementation(
+          (cachePaths: string[], primaryKey: string, restoreKey?: string[]) => {
+            return Promise.resolve(
+              primaryKey !== fileHash && restoreKey ? pipFileLockHash : ''
+            );
           }
         );
         const cacheDistributor = getCacheDistributor(

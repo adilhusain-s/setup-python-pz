@@ -173,15 +173,38 @@ async function getMacOSInfo() {
 }
 
 export async function getLinuxInfo() {
-  const {stdout} = await exec.getExecOutput('lsb_release', ['-i', '-r', '-s'], {
-    silent: true
-  });
+  try {
+    const {stdout} = await exec.getExecOutput(
+      'lsb_release',
+      ['-i', '-r', '-s'],
+      {
+        silent: true
+      }
+    );
 
-  const [osName, osVersion] = stdout.trim().split('\n');
+    const [osName, osVersion] = stdout.trim().split('\n');
+    core.debug(`OS Name: ${osName}, Version: ${osVersion}`);
+    return {osName, osVersion};
+  } catch (err) {
+    core.debug(
+      `lsb_release failed (${(err as Error).message}). Falling back to /etc/os-release.`
+    );
 
-  core.debug(`OS Name: ${osName}, Version: ${osVersion}`);
+    const osReleaseContent = fs.readFileSync('/etc/os-release', 'utf8');
+    const osInfo: {[key: string]: string} = {};
 
-  return {osName: osName, osVersion: osVersion};
+    osReleaseContent.split('\n').forEach(line => {
+      const [key, value] = line.split('=');
+      if (key && value) {
+        osInfo[key.trim()] = value.trim().replace(/"/g, '');
+      }
+    });
+
+    const osName = osInfo['ID'] || 'Linux';
+    const osVersion = osInfo['VERSION_ID'] || '';
+    core.debug(`OS Name: ${osName}, Version: ${osVersion}`);
+    return {osName, osVersion};
+  }
 }
 
 export async function getOSInfo() {
@@ -235,7 +258,7 @@ export function getVersionInputFromTomlFile(versionFile: string): string[] {
   pyprojectFile = pyprojectFile.replace(/\r\n/g, '\n');
 
   const pyprojectConfig = toml.parse(pyprojectFile);
-  let keys = [];
+  let keys: string[] = [];
 
   if ('project' in pyprojectConfig) {
     // standard project metadata (PEP 621)
@@ -244,7 +267,7 @@ export function getVersionInputFromTomlFile(versionFile: string): string[] {
     // python poetry
     keys = ['tool', 'poetry', 'dependencies', 'python'];
   }
-  const versions = [];
+  const versions: string[] = [];
   const version = extractValue(pyprojectConfig, keys);
   if (version !== undefined) {
     versions.push(version);
@@ -353,7 +376,7 @@ export function getVersionInputFromPipfileFile(versionFile: string): string[] {
   } else {
     keys.push('python_version');
   }
-  const versions = [];
+  const versions: string[] = [];
   const version = extractValue(pipfileConfig, keys);
   if (version !== undefined) {
     versions.push(version);
