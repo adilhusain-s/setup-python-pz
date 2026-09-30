@@ -1,0 +1,86 @@
+diff --git a/__tests__/install-python-mirror.test.ts b/__tests__/install-python-mirror.test.ts
+index 75cdac9..acc3147 100644
+--- a/__tests__/install-python-mirror.test.ts
++++ b/__tests__/install-python-mirror.test.ts
+@@ -91,7 +91,7 @@ const {
+ } = await import('../src/install-python.js');
+ 
+ const DEFAULT_MIRROR =
+-  'https://raw.githubusercontent.com/actions/python-versions/main';
++  'https://raw.githubusercontent.com/IBM/python-versions-pz/main';
+ 
+ const mockManifest = [
+   {
+@@ -123,7 +123,7 @@ beforeEach(() => {
+ });
+ 
+ describe('getManifestUrl', () => {
+-  it('defaults to the actions/python-versions manifest', () => {
++  it('defaults to the IBM/python-versions-pz manifest', () => {
+     expect(getManifestUrl()).toBe(`${DEFAULT_MIRROR}/versions-manifest.json`);
+   });
+ 
+@@ -241,15 +241,15 @@ describe('resolveRepoCoords', () => {
+ });
+ 
+ describe('getManifestFromRepo mirror resolution', () => {
+-  it('resolves the default mirror to actions/python-versions@main with token', async () => {
++  it('resolves the default mirror to IBM/python-versions-pz@main with token', async () => {
+     setInputs({token: 'TKN'});
+     (tc.getManifestFromRepo as jest.Mock<any>).mockResolvedValue(mockManifest);
+ 
+     await getManifestFromRepo();
+ 
+     expect(tc.getManifestFromRepo).toHaveBeenCalledWith(
+-      'actions',
+-      'python-versions',
++      'IBM',
++      'python-versions-pz',
+       'token TKN',
+       'main'
+     );
+@@ -340,8 +340,8 @@ describe('getManifestFromRepo mirror resolution', () => {
+     await getManifestFromRepo();
+ 
+     expect(tc.getManifestFromRepo).toHaveBeenCalledWith(
+-      'actions',
+-      'python-versions',
++      'IBM',
++      'python-versions-pz',
+       undefined,
+       'main'
+     );
+diff --git a/action.yml b/action.yml
+index 645de4f..4a79a62 100644
+--- a/action.yml
++++ b/action.yml
+@@ -16,11 +16,11 @@ inputs:
+     description: "Set this option if you want the action to check for the latest available version that satisfies the version spec."
+     default: false
+   token:
+-    description: "The token used to authenticate when fetching Python distributions from https://github.com/actions/python-versions. When running this action on github.com, the default value is sufficient. When running on GHES, you can pass a personal access token for github.com if you are experiencing rate limiting. This token is only sent to GitHub-owned hosts, never to a custom 'mirror'."
++    description: "The token used to authenticate when fetching Python distributions from https://github.com/IBM/python-versions-pz. When running this action on github.com, the default value is sufficient. When running on GHES, you can pass a personal access token for github.com if you are experiencing rate limiting. This token is only sent to GitHub-owned hosts, never to a custom 'mirror'."
+     default: ${{ github.server_url == 'https://github.com' && github.token || '' }}
+   mirror:
+-    description: "Base URL for downloading Python distributions (only applies to CPython; PyPy and GraalPy are unaffected). Defaults to https://raw.githubusercontent.com/actions/python-versions/main. See docs/advanced-usage.md for details."
+-    default: "https://raw.githubusercontent.com/actions/python-versions/main"
++    description: "Base URL for downloading Python distributions (only applies to CPython; PyPy and GraalPy are unaffected). Defaults to https://raw.githubusercontent.com/IBM/python-versions-pz/main."
++    default: "https://raw.githubusercontent.com/IBM/python-versions-pz/main"
+   mirror-token:
+     description: "Token used to authenticate requests to the host named in 'mirror'. Sent verbatim as the Authorization header, so include a scheme if your mirror needs one (e.g. 'Bearer <token>')."
+     required: false
+diff --git a/src/install-python.ts b/src/install-python.ts
+index 67e958a..4b8d4a5 100644
+--- a/src/install-python.ts
++++ b/src/install-python.ts
+@@ -9,8 +9,8 @@ import * as semver from 'semver';
+ import {IS_WINDOWS, IS_LINUX, getDownloadFileName} from './utils.js';
+ import {IToolRelease} from '@actions/tool-cache';
+ 
+-const DEFAULT_REPO_OWNER = 'actions';
+-const DEFAULT_REPO_NAME = 'python-versions';
++const DEFAULT_REPO_OWNER = 'IBM';
++const DEFAULT_REPO_NAME = 'python-versions-pz';
+ const DEFAULT_REPO_BRANCH = 'main';
+ const DEFAULT_MIRROR = `https://raw.githubusercontent.com/${DEFAULT_REPO_OWNER}/${DEFAULT_REPO_NAME}/${DEFAULT_REPO_BRANCH}`;
+ 

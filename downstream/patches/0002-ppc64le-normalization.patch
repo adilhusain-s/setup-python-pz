@@ -1,0 +1,20 @@
+diff --git a/src/setup-python.ts b/src/setup-python.ts
+index 8a3c7e3..82b47a1 100644
+--- a/src/setup-python.ts
++++ b/src/setup-python.ts
+@@ -113,7 +113,14 @@ async function run() {
+ 
+     if (versions.length) {
+       let pythonVersion = '';
+-      const arch: string = core.getInput('architecture') || os.arch();
++      let arch: string = core.getInput('architecture') || os.arch();
++
++      // Node.js may report ppc64le systems as `ppc64`.
++      // Normalize to `ppc64le` to match Python distribution naming.
++      if (arch === 'ppc64') {
++        core.info("Detected architecture 'ppc64'; normalizing to 'ppc64le'.");
++        arch = 'ppc64le';
++      }
+       const updateEnvironment = core.getBooleanInput('update-environment');
+       core.startGroup('Installed versions');
+       for (const version of versions) {
