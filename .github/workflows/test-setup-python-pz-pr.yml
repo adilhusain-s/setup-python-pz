@@ -1,0 +1,26 @@
+name: Test setup-python-pz PR
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04-ppc64le
+
+    steps:
+      - name: Test setup-python-pz PR branch
+        uses: adilhusain-s/setup-python-pz@chore/sync-actions-setup-python
+        with:
+          python-version: '3.13'
+
+      - name: Verify Python
+        run: |
+          python --version
+          python -c "import platform; print(platform.machine())"
+          which python
+
+      - name: Verify architecture
+        run: |
+          node -p "process.arch"
+          uname -m
+          python -c "import platform; print(platform.machine())"
