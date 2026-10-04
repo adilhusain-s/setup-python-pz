@@ -116,7 +116,9 @@ async function run() {
       // If os.arch() returns 'ppc64', we assume it's ppc64le for this action.
       // This is a common scenario where Node.js reports 'ppc64' for 'ppc64le' systems.
       if (arch === 'ppc64') {
-        core.info(`Detected architecture as 'ppc64', adjusting to 'ppc64le' for download purposes.`);
+        core.info(
+          `Detected architecture as 'ppc64', adjusting to 'ppc64le' for download purposes.`
+        );
         arch = 'ppc64le';
       }
       // --- END ADDITION ---
